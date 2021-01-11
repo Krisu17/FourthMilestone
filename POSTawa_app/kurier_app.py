@@ -8,6 +8,9 @@ from flask_cors import CORS, cross_origin
 import uuid
 import hashlib
 from datetime import datetime
+from authlib.integrations.flask_client import OAuth
+from functools import wraps
+from const_config import *
 
 
 GET = "GET"
@@ -17,10 +20,12 @@ users = "users"
 PACZKOMATY = ["p1", "p2"]
 TOKEN_DURATION_TIME = 60
 ITEMS_ON_PAGE = 5
-RESPONSE_URL = "https://localhost:8082/show_packages_"
+APP_URL = "https://localhost:8082/"
+RESPONSE_URL = APP_URL + "show_packages_"
 
 
 app = Flask(__name__, static_url_path="")
+app.secret_key = SECRET_KEY
 db = redis.Redis(host="redis", port=6379, decode_responses=True)
 
 app.config["JWT_SECRET_KEY"] = os.environ.get(SECRET_KEY)
@@ -31,6 +36,16 @@ app.config["JWT_COOKIE_SECURE"] = True
 
 jwt = JWTManager(app)
 cors = CORS(app)
+oauth = OAuth(app)
+
+auth0 = oauth.register(
+    "ped-auth0-2021",
+    api_base_url=OAUTH_BASE_URL,
+    client_id=OAUTH_CLIENT_ID,
+    client_secret=OAUTH_CLIENT_SECRET,
+    access_token_url=OAUTH_ACCESS_TOKEN_URL,
+    authorize_url=OAUTH_AUTHORIZE_URL,
+    client_kwargs={"scope": OAUTH_SCOPE})
 
 
 @app.route("/", methods=[GET])
@@ -52,6 +67,13 @@ def register():
     response = make_response(render_template("kurier-register.html", isValidCookie = isValidCookie))
     return refresh_token_session(response, request.cookies);
 
+@app.route("/register_kurier_oauth", methods=[GET])
+def register_kurier_via_oauth():
+    return auth0.authorize_redirect(
+        redirect_uri=OAUTH_CALLBACK_URL_REGISTER_COURIER,
+        audience="")
+
+
 @app.route("/login", methods=[GET])
 def login():
     user = getUserFromCookie();
@@ -59,6 +81,12 @@ def login():
     response = make_response(render_template("kurier-login.html", isValidCookie = isValidCookie))
     return refresh_token_session(response, request.cookies);
 
+
+@app.route("/login_kurier_oauth", methods=[GET])
+def login_kurier_via_oauth():
+    return auth0.authorize_redirect(
+        redirect_uri=OAUTH_CALLBACK_URL_LOGIN_COURIER,
+        audience="")
 
 @app.route("/pickup", methods=[POST])
 def pickup():
@@ -116,7 +144,15 @@ def logout():
     user = getUserFromCookie();
     isValidCookie = user is not None
     if isValidCookie:
-        response = removeCookies()
+        isOauthUser = db.hget(user, "oauthUser")
+        if(isOauthUser):
+            url_params = "returnTo=" + url_for("/", _external=True)
+            url_params += "&"
+            url_params += "client_id=" + OAUTH_CLIENT_ID
+            response = removeCookies()
+            return redirect(auth0.api_base_url + "/v2/logout?" + url_params)
+        else:
+            response = removeCookies()
     return redirect("/")
 
 
@@ -136,9 +172,10 @@ def create_new_courier(new_user):
     login = request.form['login'] + "_kurier"
     password = request.form['password']
     if(
-        db.hset(login, "password", password) != 1 
+        db.hset(login, "password", password) != 1 or
+        db.hset(login, "oauthUser", False) != 1
     ):
-        db.hdel(login, "password");
+        db.hdel(login, "password", "oauthUser");
         return {"message": "Something went wrong while adding new user"}, 400
     else:
         return {"message": "User created succesfully"}, 201
@@ -156,11 +193,56 @@ def login_kurier():
         userWaybillList = login + "-packages"
         access_token = create_access_token(identity=login, user_claims=db.hgetall(userWaybillList));
         response = make_response(jsonify({"access_token": access_token}), 200)
+        
         response.set_cookie(KURIER_SESSION_ID, name_hash, max_age=TOKEN_EXPIRES_IN_SECONDS, secure=True, httponly=True)
         return response
     else:
         return {"message": "Login or password incorrect."}, 400
 
+@app.route("/callback_register")
+def oauth_callback_register():
+    try:
+        auth0.authorize_access_token()
+        resp = auth0.get("userinfo")
+        login = resp.json()[NICKNAME] + "_kurier"
+        dbResponse = db.hgetall(login)
+        if(dbResponse == ""):
+            if( db.hset(login, "oauthUser", True) != 1):
+                db.hdel(login, "oauthUser");
+                return abort(400)
+        name_hash = hashlib.sha512(login.encode("utf-8")).hexdigest()
+        db.set(name_hash, login);
+        db.expire(name_hash, TOKEN_EXPIRES_IN_SECONDS);
+        userWaybillList = login + "-packages"
+        access_token = create_access_token(identity=login, user_claims=db.hgetall(userWaybillList));
+        response = make_response(jsonify({"access_token": access_token}), 200)
+        response.set_cookie(KURIER_SESSION_ID, name_hash, max_age=TOKEN_EXPIRES_IN_SECONDS, secure=True, httponly=True)
+        return response
+    except Exception as e:
+        app.logger.debug(e)
+        abort(400)
+
+@app.route("/callback_login")
+def oauth_callback_login():
+    try:
+        auth0.authorize_access_token()
+        resp = auth0.get("userinfo")
+        login = resp.json()[NICKNAME] + "_kurier"
+        dbResponse = db.hgetall(login)
+        if(dbResponse == ""):
+                return abort(400)
+        name_hash = hashlib.sha512(login.encode("utf-8")).hexdigest()
+        db.set(name_hash, login);
+        db.expire(name_hash, TOKEN_EXPIRES_IN_SECONDS);
+        userWaybillList = login + "-packages"
+        access_token = create_access_token(identity=login, user_claims=db.hgetall(userWaybillList));
+        response = make_response(jsonify({"access_token": access_token}), 200)
+        response = redirect(APP_URL)
+        response.set_cookie(KURIER_SESSION_ID, name_hash, max_age=TOKEN_EXPIRES_IN_SECONDS, secure=True, httponly=True)
+        return response
+    except Exception as e:
+        app.logger.debug(e)
+        return {"message": "Something went wrong while trying to log in user"}, 400
 
 def refresh_token_session(response, cookies):
     sessionId = cookies.get(KURIER_SESSION_ID);

@@ -22,7 +22,8 @@ FILES_PATH = "waybill_files/"
 IMAGES_PATH = "waybill_files/images"
 ACCEPTED_IMAGE_EXTENSIONS = ["png", "jpeg", "jpg"]
 ITEMS_ON_PAGE = 5
-RESPONSE_URL = "https://localhost:8080/show_waybills_"
+APP_URL = "https://localhost:8080/"
+RESPONSE_URL = APP_URL + "show_waybills_"
 
 app = Flask(__name__, static_url_path="")
 app.secret_key = SECRET_KEY
@@ -81,15 +82,10 @@ def login_oauth2():
 @app.route("/callback")
 def oauth_callback():
     try:
-        app.logger.debug("1")
         auth0.authorize_access_token()
-        app.logger.debug("2")
         resp = auth0.get("userinfo")
-        app.logger.debug("3")
         login = resp.json()[NICKNAME]
-        app.logger.debug("4")
         dbResponse = db.hgetall(login)
-        app.logger.debug("5")
         if(dbResponse == ""):
             if( db.hset(login, "oauthUser", True) != 1):
                 db.hdel(login, "oauthUser");
@@ -99,7 +95,7 @@ def oauth_callback():
         db.expire(name_hash, TOKEN_EXPIRES_IN_SECONDS);
         userWaybillList = login + "-waybills"
         access_token = create_access_token(identity=login, user_claims=db.hgetall(userWaybillList));
-        response = redirect("https://localhost:8080/")
+        response = redirect(APP_URL)
         response.set_cookie(USER_SESSION_ID, name_hash, max_age=TOKEN_EXPIRES_IN_SECONDS, secure=True, httponly=True)
 
         return response

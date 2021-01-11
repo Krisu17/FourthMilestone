@@ -7,6 +7,7 @@ const CLIENT_PICKUP_ROOM = "client_pickup_room" // kurier odbiera od klienta
 const COURIER_PICKUP_ROOM = "courier_pickup_room" // kurier odbiera z paczkomatu
 const CLIENT_DROP_ROOM = "client_drop_room" // klient zostawia w paczkomacie
 const PICKUP_BUTTON_ID = "pickup_button_id"
+const PLACE_FOR_MESSAGE_ID = "place_for_message"
 
 
 document.addEventListener('DOMContentLoaded', function (event) {
@@ -64,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     function showUpdateAlert() {
         let updateAlertInfo = "updateRequired"
         let updateAlertMessage = "Pojawiły się nowe pozycje na liście. Odśwież stronę."
-        showSuccesMessage(updateAlertInfo, updateAlertMessage, PICKUP_BUTTON_ID)
+        showSuccesMessage(updateAlertInfo, updateAlertMessage, PLACE_FOR_MESSAGE_ID)
     }
 
 });

@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     const PARCEL_FIELD_ID = "parcel-locker-id";
     const PACKAGE_FIELD_ID = "package-id";
     const PACKAGE_BUTTON_ID = "button-package-form";
-    var HTTP_STATUS = {OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404};
+    var HTTP_STATUS = { OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404 };
     const CLIENT_DROP_ROOM = "client_drop_room" // klient zostawia w paczkomacie
 
     prepareEventOnIdChange();
@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
     packageForm.addEventListener("submit", function (event) {
         event.preventDefault();
-        
+
         ifFormOkTryDropPackage();
     });
 
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         let idInput = document.getElementById(PACKAGE_FIELD_ID);
         idInput.addEventListener("change", updatePackageIdAvailabilityMessage);
     }
-    
+
 
     const tryDropPackage = async () => {
         let parcel_locker_id = document.getElementById(PARCEL_FIELD_ID).innerText
@@ -62,53 +62,58 @@ document.addEventListener('DOMContentLoaded', function (event) {
             redirect: "follow"
         };
 
-        let res = await fetch (DropUrl, DropParams);
+        let res = await fetch(DropUrl, DropParams);
         console.log(res.status)
         displayInConsoleCorrectResponse(res);
-        return res.json();
+        return res;
 
     }
 
 
-    const ifFormOkTryDropPackage = async() => {
-        
-        
+    const ifFormOkTryDropPackage = async () => {
+
+
         let warningDropInfoElemId = "unsuccessfulDrop";
         let warningMessage = "Nieprawidłowy identyfikator przesyłki.";
-        if(isAnyEmptyImput()) {
+        if (isAnyEmptyImput()) {
             showWarningMessage(warningDropInfoElemId, warningMessage, PACKAGE_BUTTON_ID);
             return false;
         }
 
         removeWarningMessage(warningDropInfoElemId);
         let validityWarningElemId = document.getElementById("unsuccessfulDrop");
-        
-        if( validityWarningElemId === null) {
-                try{
-                    let res = await tryDropPackage();
-                    setTimeout(function(){
-                        if (document.getElementById("correctDrop") !== null) {
-                            let correctDropInfo = "correctDrop";
-                            removeWarningMessage(correctDropInfo);
-                            sendMessage(CLIENT_DROP_ROOM, "Paczka została poprawnie przekazana do paczkomatu.");
-                        }
+
+        if (validityWarningElemId === null) {
+            try {
+                let res = await tryDropPackage();
+                if (document.getElementById("correctDrop") !== null) {
+                    sendMessage(CLIENT_DROP_ROOM, "Paczka została poprawnie przekazana do paczkomatu.");
+                    setTimeout(function () {
+                        let correctDropInfo = "correctDrop";
+                        removeWarningMessage(correctDropInfo);
+                        clearInputField();
                     }, 2000);
-                } catch (err) {
-                    console.log("Caught error ");
                 }
+            } catch (err) {
+                console.log("Caught error: " + err);
+            }
         } else {
             return false;
         }
     }
 
     function isAnyEmptyImput() {
-        if(
-            document.getElementById(PACKAGE_FIELD_ID).value === "" 
+        if (
+            document.getElementById(PACKAGE_FIELD_ID).value === ""
         ) {
             return true;
         } else {
             return false;
         }
+    }
+
+    function clearInputField() {
+        document.getElementById(PACKAGE_FIELD_ID).value = ""
     }
 
     function displayInConsoleCorrectResponse(correctResponse) {
@@ -126,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         } else if (status !== HTTP_STATUS.CREATED) {
             removeWarningMessage(correctDropInfo);
             showWarningMessage(warningDropInfo, warningMessage, PACKAGE_FIELD_ID);
-        }  else {
+        } else {
             removeWarningMessage(warningDropInfo);
             showSuccesMessage(correctDropInfo, sucessMessage, PACKAGE_BUTTON_ID);
         }

@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
                 try{
                     let res = await tryLogIn();
                     let login = document.getElementById(LOGIN_FIELD_ID).value;
-                    window.localStorage.setItem("token", res.access_token);
+                   // window.localStorage.setItem("token", res.access_token);
                     setTimeout(function(){
                         if (document.getElementById("correctLogin") !== null) {
                              window.location = "/";
