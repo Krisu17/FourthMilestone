@@ -8,6 +8,9 @@ from flask_cors import CORS, cross_origin
 import uuid
 import hashlib
 from datetime import datetime
+from authlib.integrations.flask_client import OAuth
+from functools import wraps
+from const_config import *
 
 
 GET = "GET"
@@ -22,6 +25,9 @@ ITEMS_ON_PAGE = 5
 RESPONSE_URL = "https://localhost:8080/show_waybills_"
 
 app = Flask(__name__, static_url_path="")
+app.secret_key = SECRET_KEY
+log = app.logger
+
 db = redis.Redis(host="redis", port=6379, decode_responses=True)
 
 app.config["JWT_SECRET_KEY"] = os.environ.get(SECRET_KEY)
@@ -29,9 +35,19 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = TOKEN_EXPIRES_IN_SECONDS
 app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
 app.config["JWT_COOKIE_SECURE"] = True
 
-
 jwt = JWTManager(app)
 cors = CORS(app)
+oauth = OAuth(app)
+
+auth0 = oauth.register(
+    "ped-auth0-2021",
+    api_base_url=OAUTH_BASE_URL,
+    client_id=OAUTH_CLIENT_ID,
+    client_secret=OAUTH_CLIENT_SECRET,
+    access_token_url=OAUTH_ACCESS_TOKEN_URL,
+    authorize_url=OAUTH_AUTHORIZE_URL,
+    client_kwargs={"scope": OAUTH_SCOPE})
+
 
 
 @app.route("/", methods=[GET])
@@ -55,6 +71,41 @@ def login():
     isValidCookie = user is not None
     response = make_response(render_template("client-login.html", isValidCookie = isValidCookie))
     return refresh_token_session(response, request.cookies);
+
+@app.route("/login_oauth2")
+def login_oauth2():
+    return auth0.authorize_redirect(
+        redirect_uri=OAUTH_CALLBACK_URL,
+        audience="")
+
+@app.route("/callback")
+def oauth_callback():
+    try:
+        app.logger.debug("1")
+        auth0.authorize_access_token()
+        app.logger.debug("2")
+        resp = auth0.get("userinfo")
+        app.logger.debug("3")
+        login = resp.json()[NICKNAME]
+        app.logger.debug("4")
+        dbResponse = db.hgetall(login)
+        app.logger.debug("5")
+        if(dbResponse == ""):
+            if( db.hset(login, "oauthUser", True) != 1):
+                db.hdel(login, "oauthUser");
+                return abort(400)
+        name_hash = hashlib.sha512(login.encode("utf-8")).hexdigest()
+        db.set(name_hash, login);
+        db.expire(name_hash, TOKEN_EXPIRES_IN_SECONDS);
+        userWaybillList = login + "-waybills"
+        access_token = create_access_token(identity=login, user_claims=db.hgetall(userWaybillList));
+        response = redirect("https://localhost:8080/")
+        response.set_cookie(USER_SESSION_ID, name_hash, max_age=TOKEN_EXPIRES_IN_SECONDS, secure=True, httponly=True)
+
+        return response
+    except Exception as e:
+        app.logger.debug(e)
+        abort(400)
 
 @app.route("/add_waybill", methods=[GET])
 def add_waybill():
@@ -164,7 +215,15 @@ def logout():
     user = getUserFromCookie();
     isValidCookie = user is not None
     if isValidCookie:
-        response = removeCookies()
+        isOauthUser = db.hget(user, "oauthUser")
+        if(isOauthUser):
+            url_params = "returnTo=" + url_for("/", _external=True)
+            url_params += "&"
+            url_params += "client_id=" + OAUTH_CLIENT_ID
+            response = removeCookies()
+            return redirect(auth0.api_base_url + "/v2/logout?" + url_params)
+        else:
+            response = removeCookies()
     return redirect("/")
 
 
@@ -200,9 +259,10 @@ def create_new_user(new_user):
         db.hset(login, "postalCode", postalCode) != 1 or
         db.hset(login, "country", country) != 1 or
         db.hset(login, "pesel", pesel) != 1 or
-        db.hset(login, "password", password) != 1 
+        db.hset(login, "password", password) != 1 or
+        db.hset(login, "oauthUser", False) != 1
     ):
-        db.hdel(login, "name", "surname", "birthDate", "street", "adressNumber", "postalCode", "country", "pesel", "password");
+        db.hdel(login, "name", "surname", "birthDate", "street", "adressNumber", "postalCode", "country", "pesel", "password", "oauthUser");
         return {"message": "Something went wrong while adding new user"}, 400
     else:
         return {"message": "User created succesfully"}, 201

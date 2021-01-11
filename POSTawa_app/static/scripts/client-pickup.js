@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
     const PACKAGE_FIELD_ID = "package-id";
     const PACKAGE_BUTTON_ID = "button-package-form";
-    var HTTP_STATUS = {OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404};
+    var HTTP_STATUS = { OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404 };
     const CLIENT_PICKUP_ROOM = "client_pickup_room" // kurier odbiera od klienta
 
     prepareEventOnIdChange();
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
     packageForm.addEventListener("submit", function (event) {
         event.preventDefault();
-        
+
         ifFormOkTryPickupPackage();
     });
 
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         let idInput = document.getElementById(PACKAGE_FIELD_ID);
         idInput.addEventListener("change", updatePackageIdAvailabilityMessage);
     }
-    
+
 
     const tryPickupPackage = async () => {
         let pickupUrl = URL + "pickup";
@@ -63,53 +63,59 @@ document.addEventListener('DOMContentLoaded', function (event) {
             redirect: "follow"
         };
 
-        let res = await fetch (pickupUrl, pickupParams);
+        let res = await fetch(pickupUrl, pickupParams);
         displayInConsoleCorrectResponse(res);
         return res;
 
     }
 
 
-    const ifFormOkTryPickupPackage = async() => {
-        
-        
+    const ifFormOkTryPickupPackage = async () => {
+
+
         let warningPickupInfoElemId = "unsuccessfulPickup";
         let warningMessage = "Nieprawidłowy identyfikator przesyłki.";
-        if(isAnyEmptyImput()) {
+        if (isAnyEmptyImput()) {
             showWarningMessage(warningPickupInfoElemId, warningMessage, PACKAGE_BUTTON_ID);
             return false;
         }
 
         removeWarningMessage(warningPickupInfoElemId);
         let validityWarningElemId = document.getElementById("unsuccessfulPickup");
-        
-        if( validityWarningElemId === null) {
-                try{
-                    let res = await tryPickupPackage();
-                    setTimeout(function(){
-                        if (document.getElementById("correctPickup") !== null) {
-                            let correctPickupInfo = "correctPickup";
-                            removeWarningMessage(correctPickupInfo);
-                            sendMessage(CLIENT_PICKUP_ROOM, "Paczka została poprawnie odebrana przez kuriera.");
-                        }
-                    }, 2000);
-                } catch (err) {
 
-                    console.log("Caught error: " + err);
+        if (validityWarningElemId === null) {
+            try {
+                let res = await tryPickupPackage();
+                if (document.getElementById("correctPickup") !== null) {
+                    sendMessage(CLIENT_PICKUP_ROOM, "Paczka została poprawnie odebrana przez kuriera.");
+                    setTimeout(function () {
+                        let correctPickupInfo = "correctPickup";
+                        removeWarningMessage(correctPickupInfo);
+                        clearInputField();
+
+                    }, 2000);
                 }
+            } catch (err) {
+
+                console.log("Caught error: " + err);
+            }
         } else {
             return false;
         }
     }
 
     function isAnyEmptyImput() {
-        if(
-            document.getElementById(PACKAGE_FIELD_ID).value === "" 
+        if (
+            document.getElementById(PACKAGE_FIELD_ID).value === ""
         ) {
             return true;
         } else {
             return false;
         }
+    }
+
+    function clearInputField() {
+        document.getElementById(PACKAGE_FIELD_ID).value = ""
     }
 
     function displayInConsoleCorrectResponse(correctResponse) {
@@ -127,7 +133,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         } else if (status !== HTTP_STATUS.CREATED) {
             removeWarningMessage(correctPickupInfo);
             showWarningMessage(warningPickupInfo, warningMessage, PACKAGE_FIELD_ID);
-        }  else {
+        } else {
             removeWarningMessage(warningPickupInfo);
             showSuccesMessage(correctPickupInfo, sucessMessage, PACKAGE_BUTTON_ID);
         }

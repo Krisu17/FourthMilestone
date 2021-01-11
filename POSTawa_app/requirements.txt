@@ -8,3 +8,5 @@ eventlet
 fpdf
 flask-restplus
 Werkzeug==0.16.1
+requests
+authlib
