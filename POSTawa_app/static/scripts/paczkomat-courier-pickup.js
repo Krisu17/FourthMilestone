@@ -7,54 +7,27 @@ document.addEventListener('DOMContentLoaded', function (event) {
     const PACKAGE_FIELD_ID = "token-id";
     const PACKAGE_BUTTON_ID = "button-token-form";
     var HTTP_STATUS = {OK: 200, CREATED: 201, BAD_REQUEST: 400, FORBIDDEN: 403, NOT_FOUND: 404};
-    const COURIER_PICKUP_ROOM = "courier_pickup_room" // kurier odbiera z paczkomatu
 
     prepareEventOnIdChange();
-
-    var ws_uri = "https://localhost:8084/"
-    socket = io.connect(ws_uri);
-    joinIntoRoom(COURIER_PICKUP_ROOM);
-
-    socket.on("connect", function () {
-        console.log("Correctly connected to the communication app");
-    });
-
-    socket.on("joined_room", function (message) {
-        console.log("Joined to the room ", message);
-    });
-
-    socket.on("chat_message", function (data) {
-        console.log("Received new chat message:", data);
-    });
-
-    function joinIntoRoom(room_id) {
-        socket.emit("join", { room_id: room_id });
-    }
-
-    function sendMessage(room_id, text) {
-        data = { room_id: room_id, message: text };
-        socket.emit("new_message", data);
-    }
-
+    
 
     let packageForm = document.getElementById("token-form");
-    let paczkomat_id = document.getElementById("parcel-locker-id").innerHTML;
+    let paczkomat_id = document.getElementById("paczkomat_id").value;
 
     packageForm.addEventListener("submit", function (event) {
         event.preventDefault();
-        
-        ifFormOkTryPickupPackage();
+        ifTokenOkShowPackages();
     });
 
 
     function prepareEventOnIdChange() {
         let idInput = document.getElementById(PACKAGE_FIELD_ID);
-        idInput.addEventListener("change", updatePackageIdAvailabilityMessage);
+        idInput.addEventListener("change", updateTokenIdAvailabilityMessage);
     }
     
 
-    const tryPickupPackage = async () => {
-        let pickupUrl = URL + "pickup_from_" + paczkomat_id;
+    const checkToken = async () => {
+        let checkTokenUrl = URL + "check_token_" + paczkomat_id;
 
         let pickupParams = {
             method: POST,
@@ -62,37 +35,35 @@ document.addEventListener('DOMContentLoaded', function (event) {
             redirect: "follow"
         };
 
-        let res = await fetch (pickupUrl, pickupParams);
+        let res = await fetch (checkTokenUrl, pickupParams);
         displayInConsoleCorrectResponse(res);
-        return res.json();
+        return await res;
 
     }
 
-
-    const ifFormOkTryPickupPackage = async() => {
+    const ifTokenOkShowPackages = async() => {
         
         
-        let warningPickupInfoElemId = "unsuccessfulPickup";
+        let warningTokenInfoElemId = "invalidToken";
         let warningMessage = "Nieprawidłowy token";
         if(isAnyEmptyImput()) {
-            showWarningMessage(warningPickupInfoElemId, warningMessage, PACKAGE_BUTTON_ID);
+            showWarningMessage(warningTokenInfoElemId, warningMessage, PACKAGE_FIELD_ID);
             return false;
         }
-
-        removeWarningMessage(warningPickupInfoElemId);
-        let validityWarningElemId = document.getElementById("unsuccessfulPickup");
+        removeWarningMessage(warningTokenInfoElemId);
+        let validityWarningElemId = document.getElementById(warningTokenInfoElemId);
         
         if( validityWarningElemId === null) {
                 try{
-                    let res = await tryPickupPackage();
+                    let res = await checkToken();
+                    let token = document.getElementById(PACKAGE_FIELD_ID).value;
                     setTimeout(function(){
-                        if (document.getElementById("correctPickup") !== null) {
-                            sendMessage(COURIER_PICKUP_ROOM, "Paczka została poprawnie odebrana przez kuriera.");
-                            window.location = "/show_packages_" + paczkomat_id.value + "_0";
+                        if (document.getElementById("validToken") !== null) {
+                            window.location = "/show_packages_" + paczkomat_id + "_0_" + token;
                         }
                     }, 2000);
                 } catch (err) {
-                   
+                    console.log("Caught error: " + err);
                 }
         } else {
             return false;
@@ -111,22 +82,22 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
     function displayInConsoleCorrectResponse(correctResponse) {
         let status = correctResponse.status;
-        let correctPickupInfo = "correctPickup";
+        let correctTokenInfo = "validToken";
         let sucessMessage = "Przyjęto token";
-        let warningPickupInfo = "unsuccessfulPickup";
+        let warningTokenInfo = "invalidToken";
         let warningMessage = "Nieprawidłowy token";
         let warningPackageTakenMessage = "Nieprawidłowy token"
 
 
         if (status === HTTP_STATUS.FORBIDDEN) {
-            removeWarningMessage(correctPickupInfo);
-            showWarningMessage(warningPickupInfo, warningPackageTakenMessage, PACKAGE_FIELD_ID)
-        } else if (status !== HTTP_STATUS.CREATED) {
-            removeWarningMessage(correctPickupInfo);
-            showWarningMessage(warningPickupInfo, warningMessage, PACKAGE_FIELD_ID);
+            removeWarningMessage(correctTokenInfo);
+            showWarningMessage(warningTokenInfo, warningPackageTakenMessage, PACKAGE_FIELD_ID)
+        } else if (status !== HTTP_STATUS.OK) {
+            removeWarningMessage(correctTokenInfo);
+            showWarningMessage(warningTokenInfo, warningMessage, PACKAGE_FIELD_ID);
         }  else {
-            removeWarningMessage(warningPickupInfo);
-            showSuccesMessage(correctPickupInfo, sucessMessage, PACKAGE_BUTTON_ID);
+            removeWarningMessage(warningTokenInfo);
+            showSuccesMessage(correctTokenInfo, sucessMessage, PACKAGE_BUTTON_ID);
         }
     }
 
@@ -168,10 +139,10 @@ document.addEventListener('DOMContentLoaded', function (event) {
         currentElem.insertAdjacentElement('afterend', newElem);
     }
 
-    function isPackageIdValid() {
+    function isTokenIdValid() {
         let regExpression = /^[A-Za-z0-9]+$/;
-        let package_id = document.getElementById(PACKAGE_FIELD_ID);
-        if (package_id.value.match(regExpression) && package_id.value.length > 4) {
+        let token = document.getElementById(PACKAGE_FIELD_ID);
+        if (token.value.match(regExpression) && token.value.length > 4) {
             return true;
         } else {
             return false;
@@ -179,13 +150,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
     }
 
 
-    function updatePackageIdAvailabilityMessage() {
-        let validityWarningElemId = "validPickupWarning";
-        let wrongPackageIdFormatWarningMessage = "Identyfikator musi składać się z co najmniej 5 znaków i zawierać tylko litery i cyfry."
-        if (isPackageIdValid() === true) {
+    function updateTokenIdAvailabilityMessage() {
+        let validityWarningElemId = "invalidTokenWarning";
+        let wrongTokenFormatWarningMessage = "Token musi składać się z co najmniej 5 znaków i zawierać tylko litery i cyfry."
+        if (isTokenIdValid() === true) {
             removeWarningMessage(validityWarningElemId);
         } else {
-            showWarningMessage(validityWarningElemId, wrongPackageIdFormatWarningMessage, PACKAGE_FIELD_ID)
+            showWarningMessage(validityWarningElemId, wrongTokenFormatWarningMessage, PACKAGE_FIELD_ID)
         }
     }
 

@@ -87,11 +87,14 @@ const fillStatusFields = async () => {
             else if (packageStatus === "przekazana_kurierowi") {
                 statusField.innerHTML = "przekazana kurierowi"
             }
-            else if (packageStatus === "odebrana" || packageStatus === "nowa") {
+            else if (packageStatus === "odebrana" || packageStatus === "odebrana_z_paczkomatu"){
+                statusField.innerHTML = "odebrana z paczkomatu"
+            }
+            else if (packageStatus === "nowa") {
                 statusField.innerHTML = packageStatus
             }
             else {
-                statusField.innerHTML = "status nieznany"
+                statusField.innerHTML = packageStatus
             }
         }
     }

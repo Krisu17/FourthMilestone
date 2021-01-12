@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="favicon.png"/>
     <script type="text/javascript"
         src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.4/socket.io.min.js"></script>
-    <script src="scripts/paczkomat-show-packages.js"></script>
+    <script src="scripts/paczkomat-show-and-pick-packages.js"></script>
 </head>
 <body class="registration_body">
 <nav>
@@ -41,7 +41,7 @@
             <th class="download_th" id="status_{{file}}" name="status"></th>
             
             <th class="download_th">
-                <input type="checkbox" id={{file}} name={{file}}>
+                <input type="checkbox" id={{file}} name="checkboxes">
             </th>
             <th class="download_th">
                 <div>
@@ -75,7 +75,10 @@
             </th>
         </tr>
         
-        <input type="hidden" id="kurier_token" name="kurier_token" value"{{kurier_token}}>
+        <input type="hidden" id="kurier_token" name="kurier_token" value="{{token}}">
+        <input type="hidden" id="kurier_login" name="kurier_login" value="{{user}}">
+        <input type="hidden" id="paczkomat_id" name="paczkomat_id" value="{{p_id}}">
+
     </table>
     <tr>
         <button type="submit" class="download submit" id="pickup_button_id">Odbierz</button>
@@ -83,6 +86,7 @@
     <div class="center">
         <div  id="place_for_message"></div>
     </div>
+
 </section>
 </body>
 </html>

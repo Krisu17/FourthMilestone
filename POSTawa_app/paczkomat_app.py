@@ -15,12 +15,14 @@ POST = "POST"
 KURIER_SESSION_ID = "kurier-session-id"
 users = "users"
 ITEMS_ON_PAGE = 5
-RESPONSE_URL = "https://localhost:8083/show_packages_"
+APP_URL = "https://localhost:8083/"
+RESPONSE_URL = APP_URL + "show_packages_"
 PACZKOMATY = ["p1", "p2"]
 
 
 app = Flask(__name__, static_url_path="")
 db = redis.Redis(host="redis", port=6379, decode_responses=True)
+log = app.logger
 
 app.config["JWT_SECRET_KEY"] = os.environ.get(SECRET_KEY)
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = TOKEN_EXPIRES_IN_SECONDS
@@ -65,8 +67,13 @@ def drop(p_id):
     return make_response("Status changed", 201)
 
 
-@app.route("/show_packages_<string:p_id>_<int:start>", methods=[GET])
-def show_packages(p_id, start):
+@app.route("/show_packages_<string:p_id>_<int:start>_<string:token>", methods=[GET])
+def show_packages(p_id, start, token):
+    user_tag = "-user"
+    correctPID = db.get(token)
+    correctUser = db.get(token + user_tag)
+    if (correctPID is None or correctUser is None or correctPID != p_id):
+        abort(400)
     my_packages = db.hgetall(p_id);
     waybills_list = list(my_packages)
     if (start >= 0):
@@ -76,14 +83,14 @@ def show_packages(p_id, start):
             end = number_of_waybills
             next_start = None
         else:
-            next_start = RESPONSE_URL + p_id + "_" + str(end)
+            next_start = RESPONSE_URL + p_id + "_" + str(end) + "?" + token
         prev_start_number = start - ITEMS_ON_PAGE
         if (prev_start_number < 0):
             prev_start = None
         else:
-            prev_start = RESPONSE_URL + p_id + "_" + str(prev_start_number)
+            prev_start = RESPONSE_URL + p_id + "_" + str(prev_start_number)  + "?" + token
         my_packages = waybills_list[start:end]
-        return make_response(render_template("paczkomat-packages.html", my_packages = my_packages, prev_start = prev_start, next_start = next_start, p_id = p_id));
+        return make_response(render_template("paczkomat-packages.html", my_packages = my_packages, prev_start = prev_start, next_start = next_start, p_id = p_id, token = token, user = correctUser));
     else:
         abort(400)
 
@@ -108,23 +115,26 @@ def login_kurier():
     else:
         return {"message": "Login or password incorrect."}, 400
 
-@app.route("/pickup_from_<string:p_id>", methods=[POST])
-def pickup_from(p_id):
-    if(p_id not in PACZKOMATY):
-        return make_response("Bad request", 400)
-    kurier_token = request.form['kurier_token']
-    kurier = db.hget(kurier_token, p_id)
-    if(kurier is not None):
-        kurier_packages = kurier + "-packages"
-        packages = db.hkeys(p_id)
-        for hash_name in packages:
-            if (hash_name in request.form.keys()):
-                if(request.form[hash_name]):
-                    db.hset(kurier_packages, hash_name)
-                    db.hdel(p_id, hash_name)
-                    db.hset(hash_name, "status", "odebrana_z_paczkomatu")
-    else:
-        make_response("Unauthorized", 401)
+
+
+@app.route("/pickup_from_<string:p_id>/<string:token>/<string:kurier>", methods=[POST])
+def pickup_from(p_id, token, kurier):
+    try:
+        if(p_id not in PACZKOMATY):
+            return make_response("Bad request", 400)
+        if(kurier is not None):
+            kurier_packages = kurier + "-packages"
+            packages = db.hkeys(p_id)
+            for hash_name in packages:
+                if (hash_name in request.json):
+                        wynik = db.hset(kurier_packages, hash_name, "")
+                        db.hdel(p_id, hash_name)
+                        db.hset(hash_name, "status", "odebrana")
+            return make_response("OK", 200)
+        else:
+            return make_response("Unauthorized", 401)
+    except Exception as e:
+        app.logger.debug(e)
 
 def refresh_token_session(response, cookies):
     sessionId = cookies.get(KURIER_SESSION_ID);
@@ -138,7 +148,15 @@ def refresh_token_session(response, cookies):
 def client_drop(p_id):
     return make_response(render_template("paczkomat-client-drop.html", p_id = p_id))
 
-
+@app.route("/check_token_<string:p_id>", methods=[POST])
+def check_token(p_id):
+    token = request.form["token-id"]
+    correct_p_id = db.get(token)
+    user_tag = "-user"
+    correct_user = db.get(token + user_tag)
+    if (correct_p_id is None or correct_user is None or correct_p_id != p_id):
+        return make_response("Invalid paczkomat id", 400)
+    return make_response("Correct token", 200)
 
 def getUserFromCookie():
     name_hash = request.cookies.get(KURIER_SESSION_ID)

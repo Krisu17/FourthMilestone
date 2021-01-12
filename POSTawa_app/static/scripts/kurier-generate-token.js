@@ -84,12 +84,12 @@ document.addEventListener('DOMContentLoaded', function (event) {
         let sucessMessage = "Wygenerowano poprawnie token.";
         let warningGenerationInfo = "unsuccessfulGeneration";
         let warningMessage = "Błąd. Prosze zalogować się jeszcze raz.";
-        let warningPackageTakenMessage = "Błąd. Prosze zalogować się jeszcze raz."
+        let warningPackageTokenMessage = "Błąd. Prosze zalogować się jeszcze raz."
 
 
         if (status === HTTP_STATUS.FORBIDDEN) {
             removeWarningMessage(correctGenerationInfo);
-            showWarningMessage(warningGenerationInfo, warningPackageTakenMessage, PACZKOMAT_FIELD_ID)
+            showWarningMessage(warningGenerationInfo, warningPackageTokenMessage, PACZKOMAT_FIELD_ID)
         } else if (status !== HTTP_STATUS.CREATED) {
             removeWarningMessage(correctGenerationInfo);
             showWarningMessage(warningGenerationInfo, warningMessage, PACZKOMAT_FIELD_ID);

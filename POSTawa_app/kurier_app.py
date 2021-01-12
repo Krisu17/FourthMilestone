@@ -286,13 +286,13 @@ def generate_token(p_id):
             user_tag = "-user"
             db.set(token, p_id)
             db.set(token + user_tag, user)
-            db.expire(token, TOKEN_DURATION_TIME)
-            db.expire(token + user_tag, TOKEN_DURATION_TIME)
             return make_response(jsonify(token=token), 201)
         else:
             return make_response("Invalid paczkomat id", 400)
     else:
         return make_response("Unauthorized", 403)
+
+
 
 
 def getUserFromCookie():
